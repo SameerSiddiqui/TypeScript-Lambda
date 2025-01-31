@@ -59,7 +59,7 @@ const handler = middy()
   .use(
     ssm({
       fetchData: {
-        VIRTUAL_EARTH_KEY_VALUE: process.env["REST_API_KEY_PATH"] ?? "",
+        REST_API_KEY_PATH: process.env["REST_API_KEY_PATH"] ?? "",
       },
       cacheExpiry: 15 * 60 * 1000,
       cacheKey: "ssm-defaults",
