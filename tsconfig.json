@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // base url for imports
+    "baseUrl": ".",
+    // sets root dir for compiled output
+    "rootDirs": ["src/"],
+    "outDir": "dist",
+    "pretty": true,
+    "paths": {
+      "*": ["node_modules/*"]
+    },
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts", "jest.config.js"]
+}

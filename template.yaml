@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Deployment for rest-api-service Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs20.x
+    MemorySize: 128
+    Tracing: Active
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Stage
+        REGION: !Ref AWS::Region
+
+Parameters:
+  Stage:
+    Type: String
+    Description: Deployment stage (e.g., devint, sit, stg, prod)
+    Default: "devint"
+    AllowedValues:
+      - "devint"
+      - "sit"
+      - "stg"
+      - "prod"
+    ConstraintDescription: Must be one of devint, sit, stg, or prod.
+
+  TargetServiceName:
+    Type: String
+    Description: Target service name
+    Default: "rest-api-service"
+
+Mappings:
+  EnvConfig:
+    devint:
+      Version: "v1"
+      Env: "devint"
+      RestApiUrl: "https://api.restful-api.dev"
+      RestApiTimeout: "3000"
+      RestApiKeyPath: /some/path.key
+    sit:
+      Version: "v1"
+      Env: "sit"
+      RestApiUrl: "https://api.restful-api.dev"
+      RestApiTimeout: "3000"
+      RestApiKeyPath: /some/path.key
+    stg:
+      Version: "v1"
+      Env: "stg"
+      RestApiUrl: "https://api.restful-api.dev"
+      RestApiTimeout: "3000"
+      RestApiKeyPath: /some/path.key
+    prod:
+      Version: "v1"
+      Env: "prod"
+      RestApiUrl: "https://api.restful-api.dev/"
+      RestApiTimeout: "3000"
+      RestApiKeyPath: /some/path.key
+
+  InfraParams:
+    devint:
+      SecurityGroupId: "somePath"
+      SubnetIdA: "somePath"
+      SubnetIdB: "somePath"
+    sit:
+      SecurityGroupId: "somePath"
+      SubnetIdA: "somePath"
+      SubnetIdB: "somePath"
+    stg:
+      SecurityGroupId: "somePath"
+      SubnetIdA: "somePath"
+      SubnetIdB: "somePath"
+    prod:
+      SecurityGroupId: "somePath"
+      SubnetIdA: "somePath"
+      SubnetIdB: "somePath"
+
+Resources:
+  NpmModulesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "rest-api-service-npm-modules-layer-${Stage}"
+      Description: !Sub "Lambda layer for all Node.js modules - ${Stage}"
+      ContentUri: npmModulesLayer/lib/
+      CompatibleRuntimes:
+        - nodejs20.x
+      RetentionPolicy: Retain
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "rest-api-service-LambdaExecutionRole-${Stage}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: LambdaS3AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::deploymentbucket-${Stage}"
+                  - !Sub "arn:aws:s3:::deploymentbucket-${Stage}/*"
+        - PolicyName: !Sub "rest-api-service-LambdaExecutionSSMPolicy-${Stage}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/service/*"
+        - PolicyName: !Sub "rest-api-service-LambdaExecutionCloudFormationPolicy-${Stage}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStackResources
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
+        - PolicyName: !Sub "rest-api-service-LambdaExecutionLogPolicy-${Stage}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*:*:*"
+
+  RestApiLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "rest-api-service-${Stage}"
+      Handler: index.handler
+      Runtime: nodejs20.x
+      CodeUri: dist/
+      Layers:
+        - !Ref NpmModulesLayer
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Sub
+            - "{{resolve:ssm:${SecurityGroupParam}:1}}"
+            - {
+                SecurityGroupParam:
+                  !FindInMap [InfraParams, !Ref Stage, SecurityGroupId],
+              }
+        SubnetIds:
+          - !Sub
+            - "{{resolve:ssm:${SubnetAParam}:1}}"
+            - { SubnetAParam: !FindInMap [InfraParams, !Ref Stage, SubnetIdA] }
+          - !Sub
+            - "{{resolve:ssm:${SubnetBParam}:1}}"
+            - { SubnetBParam: !FindInMap [InfraParams, !Ref Stage, SubnetIdB] }
+      Environment:
+        Variables:
+          ENV: !FindInMap [EnvConfig, !Ref Stage, Env]
+          VERSION: !FindInMap [EnvConfig, !Ref Stage, Version]
+          REGION: !Ref AWS::Region
+          REST_API_URL: !FindInMap [EnvConfig, !Ref Stage, RestApiUrl]
+          REST_API_TIMEOUT: !FindInMap [EnvConfig, !Ref Stage, RestApiTimeout]
+          REST_API_KEY_PATH: !FindInMap [EnvConfig, !Ref Stage, RestApiKeyPath]
+      Tags:
+        "TEAM:NAME:SAMPLE": "SAMEER"
+
+Outputs:
+  LambdaFunctionName:
+    Description: "rest-api-service Lambda function name."
+    Value: !Sub "rest-api-service-${Stage}"

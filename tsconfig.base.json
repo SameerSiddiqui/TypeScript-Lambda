@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    // target and module config
+    // github.com/tsconfig/bases node16
+    "lib": ["es2021"],
+    "target": "es2021",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+
+    // strict/non-strict settings
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    // use bracket syntax if unsure about property existence e.g. settings["username"]
+    "noPropertyAccessFromIndexSignature": true,
+    // add undefined as a possible value of index signatures e.g. { [propName: string]: string }
+    "noUncheckedIndexedAccess": true,
+    // allow setting optional property to undefined
+    "exactOptionalPropertyTypes": false,
+    // don't fail build because of unused variable
+    "noUnusedLocals": false,
+
+    "strictNullChecks": true,
+
+    // no lib features
+    "declaration": false,
+    "skipLibCheck": true,
+
+    // decorators
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    "noImplicitAny": true,
+    "removeComments": false,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "pretty": true,
+    "noEmit": false,
+    "isolatedModules": false,
+    "preserveConstEnums": true
+  }
+}
